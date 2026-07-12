@@ -1,0 +1,5 @@
+.git
+.gradle
+build
+# 로컬 접속정보/시크릿은 절대 이미지에 넣지 않는다
+**/application-dev.yml
