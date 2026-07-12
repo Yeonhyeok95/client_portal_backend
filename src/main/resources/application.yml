@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: tsaptest-backend
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      # 학습 단계 편의를 위해 엔티티 기준으로 스키마 자동 생성/변경.
+      # 실서비스 전환 시 Flyway 마이그레이션으로 교체하는 것이 정석.
+      ddl-auto: update
+    open-in-view: false
+
+server:
+  port: ${PORT:8080}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    ttl: 12h
+  resend:
+    # 비어 있으면 실제 발송 대신 로그로만 출력 (dev 폴백)
+    api-key: ${RESEND_API_KEY:}
+  contact:
+    admin-email: ${ADMIN_EMAIL:xonfidentialinfo@gmail.com}
+  cors:
+    # 쉼표로 여러 origin 지정 가능
+    allowed-origins: ${CORS_ALLOWED_ORIGIN:http://localhost:3000}
+  seed-demo-users: false
