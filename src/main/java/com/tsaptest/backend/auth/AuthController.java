@@ -5,11 +5,16 @@ import com.tsaptest.backend.user.UserRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -22,13 +27,19 @@ public class AuthController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
+    private final TwoFactorService twoFactorService;
+    private final JwtDecoder jwtDecoder;
 
     public AuthController(UserRepository userRepository,
                           PasswordEncoder passwordEncoder,
-                          TokenService tokenService) {
+                          TokenService tokenService,
+                          TwoFactorService twoFactorService,
+                          JwtDecoder jwtDecoder) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
+        this.twoFactorService = twoFactorService;
+        this.jwtDecoder = jwtDecoder;
     }
 
     public record LoginRequest(
@@ -36,15 +47,22 @@ public class AuthController {
             @NotBlank String password) {
     }
 
+    public record LoginResponse(String preAuthToken, String maskedEmail) {
+    }
+
+    public record VerifyRequest(@NotBlank String code) {
+    }
+
     public record UserInfo(String email, String name, String role) {
     }
 
-    public record LoginResponse(String token, UserInfo user) {
+    public record VerifyResponse(String token, UserInfo user) {
     }
 
     public record ErrorResponse(String message) {
     }
 
+    /** 1단계: 비밀번호 확인 → 임시(pre-auth) 토큰 + 이메일 코드 발송. */
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
         Optional<User> found = userRepository.findByEmailIgnoreCase(request.email().trim());
@@ -55,9 +73,72 @@ public class AuthController {
                     .body(new ErrorResponse("Invalid email or password."));
         }
         User user = found.get();
-        String token = tokenService.issue(user);
+        twoFactorService.issueCode(user);
         return ResponseEntity.ok(new LoginResponse(
-                token,
-                new UserInfo(user.getEmail(), user.getDisplayName(), user.getRole().name())));
+                tokenService.issuePreAuthToken(user),
+                maskEmail(user.getEmail())));
+    }
+
+    /** 2단계: 이메일 코드 검증 → 정식 토큰 발급. */
+    @PostMapping("/verify")
+    public ResponseEntity<?> verify(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader,
+            @Valid @RequestBody VerifyRequest request) {
+        User user = resolvePreAuthUser(authHeader);
+        if (user == null) {
+            return unauthorized("Your sign-in session has expired. Please sign in again.");
+        }
+        return switch (twoFactorService.verify(user.getId(), request.code().trim())) {
+            case OK -> ResponseEntity.ok(new VerifyResponse(
+                    tokenService.issueAccessToken(user),
+                    new UserInfo(user.getEmail(), user.getDisplayName(), user.getRole().name())));
+            case WRONG_CODE -> unauthorized("That code is not correct. Please try again.");
+            case EXPIRED_OR_MISSING ->
+                    unauthorized("Your code has expired. Please request a new one.");
+            case TOO_MANY_ATTEMPTS ->
+                    unauthorized("Too many attempts. Please request a new code.");
+        };
+    }
+
+    /** 코드 재발송 ("Send a new code"). */
+    @PostMapping("/resend")
+    public ResponseEntity<?> resend(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader) {
+        User user = resolvePreAuthUser(authHeader);
+        if (user == null) {
+            return unauthorized("Your sign-in session has expired. Please sign in again.");
+        }
+        twoFactorService.issueCode(user);
+        return ResponseEntity.accepted().build();
+    }
+
+    /** Bearer pre-auth 토큰(scope=twofa)을 검증하고 사용자로 변환. 실패 시 null. */
+    private User resolvePreAuthUser(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return null;
+        }
+        Jwt jwt;
+        try {
+            jwt = jwtDecoder.decode(authHeader.substring("Bearer ".length()));
+        } catch (JwtException e) {
+            return null;
+        }
+        if (!"twofa".equals(jwt.getClaimAsString("scope"))) {
+            return null;
+        }
+        return userRepository.findById(Long.valueOf(jwt.getSubject())).orElse(null);
+    }
+
+    private ResponseEntity<ErrorResponse> unauthorized(String message) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorResponse(message));
+    }
+
+    /** client@tsaptest.com → c•••@tsaptest.com */
+    private static String maskEmail(String email) {
+        int at = email.indexOf('@');
+        if (at < 1) {
+            return "•••";
+        }
+        return email.charAt(0) + "•••" + email.substring(at);
     }
 }

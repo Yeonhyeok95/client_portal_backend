@@ -29,6 +29,12 @@ app:
     api-key: ${RESEND_API_KEY:}
   contact:
     admin-email: ${ADMIN_EMAIL:xonfidentialinfo@gmail.com}
+  twofa:
+    # Resend 도메인 인증 전에는 가입 계정으로만 발송 가능 —
+    # 값을 지정하면 모든 2FA 코드가 이 주소로 간다 (데모용 우회)
+    override-email: ${TWOFA_EMAIL_OVERRIDE:}
+    # true면 코드를 서버 로그에도 출력 (dev 전용, 운영 금지)
+    log-codes: false
   cors:
     # 쉼표로 여러 origin 지정 가능
     allowed-origins: ${CORS_ALLOWED_ORIGIN:http://localhost:3000}

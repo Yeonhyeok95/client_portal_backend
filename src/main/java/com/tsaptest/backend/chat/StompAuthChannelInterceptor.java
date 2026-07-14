@@ -55,6 +55,10 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             }
             Jwt jwt = jwtDecoder.decode(header.substring("Bearer ".length()));
             AbstractAuthenticationToken authentication = jwtAuthenticationConverter.convert(jwt);
+            // 2FA 전의 pre-auth 토큰(role 없음)으로는 WS 연결 불가
+            if (authentication == null || authentication.getAuthorities().isEmpty()) {
+                throw new AccessDeniedException("Full authentication required");
+            }
             accessor.setUser(authentication);
         }
 

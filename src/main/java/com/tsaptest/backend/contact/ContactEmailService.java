@@ -1,29 +1,23 @@
 package com.tsaptest.backend.contact;
 
+import com.tsaptest.backend.email.ResendEmailSender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
-
-import java.util.List;
-import java.util.Map;
 
 @Service
 public class ContactEmailService {
 
     private static final Logger log = LoggerFactory.getLogger(ContactEmailService.class);
 
-    private final RestClient restClient;
-    private final String apiKey;
+    private final ResendEmailSender emailSender;
     private final String adminEmail;
 
-    public ContactEmailService(@Value("${app.resend.api-key}") String apiKey,
+    public ContactEmailService(ResendEmailSender emailSender,
                                @Value("${app.contact.admin-email}") String adminEmail) {
-        this.restClient = RestClient.builder().baseUrl("https://api.resend.com").build();
-        this.apiKey = apiKey;
+        this.emailSender = emailSender;
         this.adminEmail = adminEmail;
     }
 
@@ -48,28 +42,11 @@ public class ContactEmailService {
                 blankToDash(request.phone()),
                 blankToDash(request.message()));
 
-        if (apiKey.isBlank()) {
-            // dev 폴백: RESEND_API_KEY 미설정 시 발송 대신 내용만 로그로 확인
-            log.warn("RESEND_API_KEY not set — contact email NOT sent. Content:\n{}", body);
-            return;
-        }
-
         try {
-            Map<String, Object> payload = Map.of(
-                    // 도메인 인증 전 Resend 샌드박스 발신 주소
-                    "from", "TSAPtest Contact <onboarding@resend.dev>",
-                    "to", List.of(adminEmail),
-                    "reply_to", request.email(),
-                    "subject", "New contact request — " + request.name(),
-                    "text", body);
-            restClient.post()
-                    .uri("/emails")
-                    .header("Authorization", "Bearer " + apiKey)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(payload)
-                    .retrieve()
-                    .toBodilessEntity();
-            log.info("Contact email sent to {}", adminEmail);
+            if (emailSender.send(adminEmail, request.email(),
+                    "New contact request — " + request.name(), body)) {
+                log.info("Contact email sent to {}", adminEmail);
+            }
         } catch (Exception e) {
             log.error("Failed to send contact email", e);
         }
