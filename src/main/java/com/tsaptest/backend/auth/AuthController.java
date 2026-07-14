@@ -5,6 +5,7 @@ import com.tsaptest.backend.user.UserRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,17 +30,20 @@ public class AuthController {
     private final TokenService tokenService;
     private final TwoFactorService twoFactorService;
     private final JwtDecoder jwtDecoder;
+    private final boolean twofaEnabled;
 
     public AuthController(UserRepository userRepository,
                           PasswordEncoder passwordEncoder,
                           TokenService tokenService,
                           TwoFactorService twoFactorService,
-                          JwtDecoder jwtDecoder) {
+                          JwtDecoder jwtDecoder,
+                          @Value("${app.twofa.enabled}") boolean twofaEnabled) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
         this.twoFactorService = twoFactorService;
         this.jwtDecoder = jwtDecoder;
+        this.twofaEnabled = twofaEnabled;
     }
 
     public record LoginRequest(
@@ -73,6 +77,10 @@ public class AuthController {
                     .body(new ErrorResponse("Invalid email or password."));
         }
         User user = found.get();
+        if (!twofaEnabled) {
+            // 2FA 토글 꺼짐 (TWOFA_ENABLED=false) — 즉시 정식 토큰 발급
+            return ResponseEntity.ok(fullSignIn(user));
+        }
         twoFactorService.issueCode(user);
         return ResponseEntity.ok(new LoginResponse(
                 tokenService.issuePreAuthToken(user),
@@ -89,9 +97,7 @@ public class AuthController {
             return unauthorized("Your sign-in session has expired. Please sign in again.");
         }
         return switch (twoFactorService.verify(user.getId(), request.code().trim())) {
-            case OK -> ResponseEntity.ok(new VerifyResponse(
-                    tokenService.issueAccessToken(user),
-                    new UserInfo(user.getEmail(), user.getDisplayName(), user.getRole().name())));
+            case OK -> ResponseEntity.ok(fullSignIn(user));
             case WRONG_CODE -> unauthorized("That code is not correct. Please try again.");
             case EXPIRED_OR_MISSING ->
                     unauthorized("Your code has expired. Please request a new one.");
@@ -127,6 +133,12 @@ public class AuthController {
             return null;
         }
         return userRepository.findById(Long.valueOf(jwt.getSubject())).orElse(null);
+    }
+
+    private VerifyResponse fullSignIn(User user) {
+        return new VerifyResponse(
+                tokenService.issueAccessToken(user),
+                new UserInfo(user.getEmail(), user.getDisplayName(), user.getRole().name()));
     }
 
     private ResponseEntity<ErrorResponse> unauthorized(String message) {
