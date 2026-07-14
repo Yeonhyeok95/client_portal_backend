@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -30,10 +31,13 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                            JwtAuthenticationConverter jwtAuthenticationConverter)
+            throws Exception {
         http
                 // JWT를 Authorization 헤더로만 받으므로 세션/CSRF 불필요 (stateless)
                 .csrf(csrf -> csrf.disable())
@@ -42,9 +46,11 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**", "/api/contact").permitAll()
+                        // WS 핸드셰이크는 통과시키고, 인증은 STOMP CONNECT에서 수행
+                        .requestMatchers("/ws/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)));
         return http.build();
     }
 
@@ -64,8 +70,10 @@ public class SecurityConfig {
                 .build();
     }
 
-    private JwtAuthenticationConverter jwtAuthenticationConverter() {
-        // 토큰의 "role" 클레임(CLIENT/ADVISOR)을 ROLE_ 권한으로 매핑
+    @Bean
+    JwtAuthenticationConverter jwtAuthenticationConverter() {
+        // 토큰의 "role" 클레임(CLIENT/ADVISOR)을 ROLE_ 권한으로 매핑.
+        // HTTP 리소스 서버와 STOMP 인터셉터가 같은 컨버터를 공유한다.
         JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
         authorities.setAuthoritiesClaimName("role");
         authorities.setAuthorityPrefix("ROLE_");
