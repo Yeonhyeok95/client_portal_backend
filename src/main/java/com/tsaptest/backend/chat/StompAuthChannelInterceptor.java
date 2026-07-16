@@ -55,8 +55,12 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             }
             Jwt jwt = jwtDecoder.decode(header.substring("Bearer ".length()));
             AbstractAuthenticationToken authentication = jwtAuthenticationConverter.convert(jwt);
-            // 2FA 전의 pre-auth 토큰(role 없음)으로는 WS 연결 불가
-            if (authentication == null || authentication.getAuthorities().isEmpty()) {
+            // 2FA 전의 pre-auth 토큰(role 없음)으로는 WS 연결 불가.
+            // isEmpty() 검사로는 부족하다 — Security 7부터 모든 JWT 인증에
+            // FACTOR_BEARER 권한이 자동 부여되어 절대 비지 않는다. ROLE_*를 요구해야 한다.
+            boolean hasRole = authentication != null && authentication.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().startsWith("ROLE_"));
+            if (!hasRole) {
                 throw new AccessDeniedException("Full authentication required");
             }
             accessor.setUser(authentication);
