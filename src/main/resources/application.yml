@@ -37,7 +37,7 @@ app:
     admin-email: ${ADMIN_EMAIL:xonfidentialinfo@gmail.com}
   twofa:
     # false면 2FA를 건너뛰고 로그인 즉시 정식 토큰 발급 (데모/개발용 토글)
-    enabled: ${TWOFA_ENABLED:true}
+    enabled: ${TWOFA_ENABLED:false}
     # Resend 도메인 인증 전에는 가입 계정으로만 발송 가능 —
     # 값을 지정하면 모든 2FA 코드가 이 주소로 간다 (데모용 우회)
     override-email: ${TWOFA_EMAIL_OVERRIDE:}
