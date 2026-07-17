@@ -31,6 +31,14 @@ public class ChatConversation {
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    /** 고객이 읽은 마지막 메시지 ID (0 = 아무것도 안 읽음). */
+    @Column(nullable = false)
+    private long clientLastReadMessageId;
+
+    /** 상담 데스크가 읽은 마지막 메시지 ID — 상담사들이 공유하는 값. */
+    @Column(nullable = false)
+    private long advisorLastReadMessageId;
+
     protected ChatConversation() {
     }
 
@@ -48,5 +56,22 @@ public class ChatConversation {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public long getClientLastReadMessageId() {
+        return clientLastReadMessageId;
+    }
+
+    public long getAdvisorLastReadMessageId() {
+        return advisorLastReadMessageId;
+    }
+
+    /** 마커는 앞으로만 이동한다 — 옛 페이지를 다시 열어도 읽음 상태가 되돌아가지 않도록. */
+    public void markReadUpTo(long messageId, boolean advisor) {
+        if (advisor) {
+            advisorLastReadMessageId = Math.max(advisorLastReadMessageId, messageId);
+        } else {
+            clientLastReadMessageId = Math.max(clientLastReadMessageId, messageId);
+        }
     }
 }

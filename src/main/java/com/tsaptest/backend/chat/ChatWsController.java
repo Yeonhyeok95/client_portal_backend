@@ -22,8 +22,10 @@ public class ChatWsController {
     }
 
     /**
-     * 클라이언트가 /app/conversations/{id}/send 로 보낸 메시지를
-     * 저장한 뒤 해당 대화방 토픽(양쪽 화면)과 상담사 목록 토픽에 브로드캐스트.
+     * 클라이언트가 /app/conversations/{id}/send 로 보낸 메시지를 저장한 뒤,
+     * - /topic/conversations/{id} : 메시지 본문 (열려 있는 스레드 화면용)
+     * - /topic/advisor            : 대화방 요약 (상담사 목록 갱신용 — 목록에 없던
+     *                               새 대화방도 이걸로 실시간 추가된다)
      */
     @MessageMapping("/conversations/{id}/send")
     public void send(@DestinationVariable Long id, SendMessageRequest request, Principal principal) {
@@ -42,6 +44,6 @@ public class ChatWsController {
         }
         MessageDto dto = chatService.recordMessage(id, userId, content);
         messagingTemplate.convertAndSend("/topic/conversations/" + id, dto);
-        messagingTemplate.convertAndSend("/topic/advisor", dto);
+        messagingTemplate.convertAndSend("/topic/advisor", chatService.getConversationSummary(id));
     }
 }
