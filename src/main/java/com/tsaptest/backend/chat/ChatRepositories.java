@@ -40,4 +40,8 @@ interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
     long countUnread(Long conversationId, long afterId, UserRole senderRole);
 
     long countByConversationId(Long conversationId);
+
+    void deleteByConversationId(Long conversationId);
+
+    void deleteBySenderId(Long senderId);
 }

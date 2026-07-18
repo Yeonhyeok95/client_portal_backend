@@ -43,6 +43,32 @@ class ChatServiceTest {
         return c;
     }
 
+    // ---- deleteDataForUser: 계정 완전삭제 시 채팅 정리 ----
+
+    @Test
+    void deleteDataForClientRemovesOwnConversationAndMessages() {
+        ChatConversation own = conversation(10L);
+        when(conversationRepository.findByClientId(1L)).thenReturn(Optional.of(own));
+
+        service.deleteDataForUser(1L);
+
+        // FK 순서: 메시지 → 대화방, 마지막으로 남의 방에 남긴 발신 메시지까지
+        verify(messageRepository).deleteByConversationId(10L);
+        verify(conversationRepository).delete(own);
+        verify(messageRepository).deleteBySenderId(1L);
+    }
+
+    @Test
+    void deleteDataForAdvisorOnlyRemovesSentMessages() {
+        // 상담사는 본인 소유 대화방이 없다 — 남의 방에 남긴 메시지만 지운다
+        when(conversationRepository.findByClientId(2L)).thenReturn(Optional.empty());
+
+        service.deleteDataForUser(2L);
+
+        verify(messageRepository).deleteBySenderId(2L);
+        verify(conversationRepository, org.mockito.Mockito.never()).delete(any());
+    }
+
     // ---- canAccess: 인가 규칙 ----
 
     @Test

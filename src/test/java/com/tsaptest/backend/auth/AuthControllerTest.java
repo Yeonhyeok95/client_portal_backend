@@ -54,6 +54,7 @@ class AuthControllerTest {
         when(user.getDisplayName()).thenReturn("Eleanor Whitfield");
         when(user.getRole()).thenReturn(UserRole.CLIENT);
         when(user.getPasswordHash()).thenReturn(bcrypt.encode("correct-password"));
+        when(user.isEnabled()).thenReturn(true);
         when(userRepository.findByEmailIgnoreCase("client@tsaptest.com"))
                 .thenReturn(Optional.of(user));
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
@@ -112,6 +113,31 @@ class AuthControllerTest {
                 new LoginRequest("  client@tsaptest.com  ", "correct-password"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void disabledAccountIsRejectedEvenWithCorrectPassword() {
+        // 관리자 비활성화(soft delete)된 계정 — 비밀번호가 맞아도 로그인 불가
+        when(user.isEnabled()).thenReturn(false);
+
+        ResponseEntity<?> response = controller.login(
+                new LoginRequest("client@tsaptest.com", "correct-password"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        verify(twoFactorService, never()).issueCode(any());
+    }
+
+    @Test
+    void disabledAccountCannotCompleteVerify() {
+        // 2FA 진행 도중 비활성화된 경우 — pre-auth 토큰이 있어도 verify에서 차단
+        String preAuth = tokenService.issuePreAuthToken(user);
+        when(user.isEnabled()).thenReturn(false);
+
+        ResponseEntity<?> response = controller.verify(
+                "Bearer " + preAuth, new VerifyRequest("123456"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        verify(twoFactorService, never()).verify(any(), any());
     }
 
     // ---- 2단계: verify ----

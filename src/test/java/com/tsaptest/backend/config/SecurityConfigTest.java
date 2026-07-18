@@ -97,4 +97,12 @@ class SecurityConfigTest {
                         .header("Authorization", "Bearer " + JwtTestSupport.roleToken(2L, "ADVISOR")))
                 .andExpect(status().isOk());
     }
+
+    @Test
+    void adminTokenCannotAccessClientApis() throws Exception {
+        // 최소권한: ADMIN은 /api/admin/** 전용 — 고객 금융 데이터 API는 403
+        mockMvc.perform(get("/api/portfolio")
+                        .header("Authorization", "Bearer " + JwtTestSupport.roleToken(100L, "ADMIN")))
+                .andExpect(status().isForbidden());
+    }
 }

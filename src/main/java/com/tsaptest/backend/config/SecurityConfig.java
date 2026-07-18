@@ -48,6 +48,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**", "/api/contact").permitAll()
                         // WS 핸드셰이크는 통과시키고, 인증은 STOMP CONNECT에서 수행
                         .requestMatchers("/ws/**").permitAll()
+                        // 관리자 API는 ADMIN 전용, 반대로 ADMIN은 아래 anyRequest에서
+                        // 빠져 있어 포트폴리오/채팅 API에 접근 불가 (최소권한)
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // authenticated()가 아닌 role 요구 — 2FA 전의 pre-auth 토큰은
                         // role 클레임이 없으므로 여기서 전부 차단된다
                         .anyRequest().hasAnyRole("CLIENT", "ADVISOR"))

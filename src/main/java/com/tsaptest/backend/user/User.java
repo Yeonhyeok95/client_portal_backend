@@ -35,6 +35,10 @@ public class User {
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    // false면 로그인 차단 (관리자 비활성화 = soft delete, 데이터는 보존)
+    @Column(nullable = false)
+    private boolean enabled = true;
+
     protected User() {
         // JPA 스펙상 기본 생성자 필요
     }
@@ -58,6 +62,10 @@ public class User {
         return passwordHash;
     }
 
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
     public String getDisplayName() {
         return displayName;
     }
@@ -72,5 +80,13 @@ public class User {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 }

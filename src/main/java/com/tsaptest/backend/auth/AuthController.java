@@ -77,6 +77,11 @@ public class AuthController {
                     .body(new ErrorResponse("Invalid email or password."));
         }
         User user = found.get();
+        // 비밀번호 검증 후에만 노출 — 본인이므로 user enumeration 문제 없음
+        if (!user.isEnabled()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("This account has been disabled."));
+        }
         if (!twofaEnabled) {
             // 2FA 토글 꺼짐 (TWOFA_ENABLED=false) — 즉시 정식 토큰 발급
             return ResponseEntity.ok(fullSignIn(user));
@@ -132,7 +137,10 @@ public class AuthController {
         if (!"twofa".equals(jwt.getClaimAsString("scope"))) {
             return null;
         }
-        return userRepository.findById(Long.valueOf(jwt.getSubject())).orElse(null);
+        // 2FA 진행 도중 비활성화된 계정도 여기서 차단된다
+        return userRepository.findById(Long.valueOf(jwt.getSubject()))
+                .filter(User::isEnabled)
+                .orElse(null);
     }
 
     private VerifyResponse fullSignIn(User user) {

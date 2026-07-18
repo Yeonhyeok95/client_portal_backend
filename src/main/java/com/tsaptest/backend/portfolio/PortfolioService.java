@@ -1,5 +1,6 @@
 package com.tsaptest.backend.portfolio;
 
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,5 +69,18 @@ public class PortfolioService {
                         h.getPrice(), h.getValue(), h.getDayLabel(), h.getDayTrend(),
                         h.getGainLabel(), h.isGainUp())).toList(),
                 accountFilters);
+    }
+
+    /**
+     * 계정 완전삭제(관리자) 시 이 사용자의 포트폴리오 데이터 전부 제거.
+     * 리포지토리들이 package-private이라 admin 패키지 대신 여기서 담당한다.
+     */
+    @CacheEvict(cacheNames = "portfolio", key = "#userId")
+    @Transactional
+    public void deleteDataForUser(Long userId) {
+        accountRepository.deleteByUserId(userId);
+        holdingRepository.deleteByUserId(userId);
+        activityEntryRepository.deleteByUserId(userId);
+        snapshotRepository.deleteByUserId(userId);
     }
 }

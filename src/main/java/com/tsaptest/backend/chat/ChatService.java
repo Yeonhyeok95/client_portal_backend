@@ -112,6 +112,20 @@ public class ChatService {
                 .orElse(false);
     }
 
+    /**
+     * 계정 완전삭제(관리자) 시 이 사용자의 채팅 흔적 전부 제거.
+     * 고객이면 본인 대화방과 그 안의 메시지 전체(상담사 발신 포함)를,
+     * 상담사면 다른 고객 대화방에 남긴 본인 발신 메시지를 지운다 (FK 충족).
+     */
+    @Transactional
+    public void deleteDataForUser(Long userId) {
+        conversationRepository.findByClientId(userId).ifPresent(conversation -> {
+            messageRepository.deleteByConversationId(conversation.getId());
+            conversationRepository.delete(conversation);
+        });
+        messageRepository.deleteBySenderId(userId);
+    }
+
     private ConversationSummaryDto toSummary(ChatConversation c) {
         ChatMessage last = messageRepository
                 .findTopByConversationIdOrderBySentAtDescIdDesc(c.getId())
