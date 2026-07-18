@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -48,6 +49,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**", "/api/contact").permitAll()
                         // WS 핸드셰이크는 통과시키고, 인증은 STOMP CONNECT에서 수행
                         .requestMatchers("/ws/**").permitAll()
+                        // 뉴스 조회는 공개(마케팅 페이지), 수집/숨김 관리는 상담사·관리자
+                        .requestMatchers(HttpMethod.GET, "/api/news").permitAll()
+                        .requestMatchers("/api/news/**").hasAnyRole("ADVISOR", "ADMIN")
                         // 관리자 API는 ADMIN 전용, 반대로 ADMIN은 아래 anyRequest에서
                         // 빠져 있어 포트폴리오/채팅 API에 접근 불가 (최소권한)
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
