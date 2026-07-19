@@ -58,8 +58,12 @@ public class NewsFetchService {
                     "https://feeds.content.dowjones.io/public/rss/mw_topstories"),
             new FeedSpec("Yahoo Finance", NewsCategory.BUSINESS,
                     "https://finance.yahoo.com/news/rssindex"),
+            // Accounting Today는 데이터센터 IP(Render)를 차단해 프로덕션에선 실패하지만
+            // 장애 격리가 되므로 로컬 개발용으로 유지. 프로덕션 tax 기사는 아래 피드가 담당.
             new FeedSpec("Accounting Today", NewsCategory.TAX_ACCOUNTING,
-                    "https://www.accountingtoday.com/feed?rss=true"));
+                    "https://www.accountingtoday.com/feed?rss=true"),
+            new FeedSpec("CPA Practice Advisor", NewsCategory.TAX_ACCOUNTING,
+                    "https://www.cpapracticeadvisor.com/feed/"));
 
     /** 카테고리별 보존 한도 = 페이지당 9장 × 최대 5페이지. 초과분은 오래된 것부터 삭제 */
     static final int KEEP_PER_CATEGORY = 45;
