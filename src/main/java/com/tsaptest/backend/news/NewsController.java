@@ -28,11 +28,12 @@ import java.util.List;
 public class NewsController {
 
     public record NewsDto(Long id, String source, String category, String title,
-                          String summary, String url, Instant publishedAt) {
+                          String summary, String url, String imageUrl, Instant publishedAt) {
 
         static NewsDto from(NewsArticle a) {
             return new NewsDto(a.getId(), a.getSource(), a.getCategory().name(),
-                    a.getTitle(), a.getSummary(), a.getUrl(), a.getPublishedAt());
+                    a.getTitle(), a.getSummary(), a.getUrl(), a.getImageUrl(),
+                    a.getPublishedAt());
         }
     }
 

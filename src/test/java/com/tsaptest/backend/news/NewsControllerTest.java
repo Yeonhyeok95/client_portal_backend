@@ -60,8 +60,8 @@ class NewsControllerTest {
     private NewsArticleRepository repository;
 
     private NewsArticle article() {
-        return new NewsArticle("CNBC", NewsCategory.MARKETS, "Fed holds rates",
-                "summary", "https://example.com/fed",
+        return new NewsArticle("MarketWatch", NewsCategory.MARKETS, "Fed holds rates",
+                "summary", "https://example.com/fed", "https://img.example.com/fed.jpg",
                 Instant.parse("2026-07-18T00:00:00Z"), Instant.now());
     }
 
@@ -77,6 +77,7 @@ class NewsControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].title").value("Fed holds rates"))
                 .andExpect(jsonPath("$[0].url").value("https://example.com/fed"))
+                .andExpect(jsonPath("$[0].imageUrl").value("https://img.example.com/fed.jpg"))
                 // 공개 콘텐츠 — 포트폴리오(no-store)와 달리 공유 캐시 허용
                 .andExpect(header().string("Cache-Control", containsString("public")));
     }

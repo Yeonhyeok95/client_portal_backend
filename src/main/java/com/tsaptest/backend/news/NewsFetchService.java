@@ -1,5 +1,11 @@
 package com.tsaptest.backend.news;
 
+import com.rometools.modules.mediarss.MediaEntryModule;
+import com.rometools.modules.mediarss.MediaModule;
+import com.rometools.modules.mediarss.types.MediaContent;
+import com.rometools.modules.mediarss.types.Metadata;
+import com.rometools.modules.mediarss.types.UrlReference;
+import com.rometools.rome.feed.synd.SyndEnclosure;
 import com.rometools.rome.feed.synd.SyndEntry;
 import com.rometools.rome.feed.synd.SyndFeed;
 import com.rometools.rome.io.SyndFeedInput;
@@ -45,23 +51,18 @@ public class NewsFetchService {
         SyndFeed load(String url) throws Exception;
     }
 
-    // 2026-07-18 실응답 검증 완료 목록. 죽은 피드는 여기만 교체하면 된다.
+    // 썸네일(media:content/thumbnail/enclosure)을 제공하는 피드만 수집한다 (2026-07-19 정책).
+    // CNBC·Tax Foundation은 이미지 태그가 전혀 없어 제외. 죽은 피드는 여기만 교체하면 된다.
     static final List<FeedSpec> FEEDS = List.of(
-            new FeedSpec("CNBC", NewsCategory.MARKETS,
-                    "https://www.cnbc.com/id/20910258/device/rss/rss.html"),
             new FeedSpec("MarketWatch", NewsCategory.MARKETS,
                     "https://feeds.content.dowjones.io/public/rss/mw_topstories"),
-            new FeedSpec("CNBC", NewsCategory.BUSINESS,
-                    "https://www.cnbc.com/id/10001147/device/rss/rss.html"),
             new FeedSpec("Yahoo Finance", NewsCategory.BUSINESS,
                     "https://finance.yahoo.com/news/rssindex"),
             new FeedSpec("Accounting Today", NewsCategory.TAX_ACCOUNTING,
-                    "https://www.accountingtoday.com/feed?rss=true"),
-            new FeedSpec("Tax Foundation", NewsCategory.TAX_ACCOUNTING,
-                    "https://taxfoundation.org/feed/"));
+                    "https://www.accountingtoday.com/feed?rss=true"));
 
-    /** 카테고리별 보존 한도 — 초과분은 오래된 것부터 삭제 (무료 DB 용량 보호) */
-    static final int KEEP_PER_CATEGORY = 60;
+    /** 카테고리별 보존 한도 = 페이지당 9장 × 최대 5페이지. 초과분은 오래된 것부터 삭제 */
+    static final int KEEP_PER_CATEGORY = 45;
 
     private static final Duration STALE_AFTER = Duration.ofMinutes(60);
     private static final int TITLE_MAX = 500;
@@ -172,7 +173,9 @@ public class NewsFetchService {
         for (SyndEntry entry : parsed.getEntries()) {
             String url = entry.getLink() != null ? entry.getLink().trim() : "";
             String title = cleanText(entry.getTitle(), TITLE_MAX);
-            if (url.isBlank() || url.length() > 1000 || title.isBlank()
+            String imageUrl = extractImageUrl(entry);
+            // 이미지 없는 항목은 버린다 — 카드 UI가 전부 썸네일을 갖도록 하는 정책
+            if (url.isBlank() || url.length() > 1000 || title.isBlank() || imageUrl == null
                     || repository.existsByUrl(url)) {
                 continue;
             }
@@ -183,10 +186,40 @@ public class NewsFetchService {
                     ? entry.getPublishedDate().toInstant()
                     : (entry.getUpdatedDate() != null ? entry.getUpdatedDate().toInstant() : now);
             repository.save(new NewsArticle(
-                    feed.source(), feed.category(), title, summary, url, publishedAt, now));
+                    feed.source(), feed.category(), title, summary, url, imageUrl,
+                    publishedAt, now));
             added++;
         }
         return added;
+    }
+
+    /**
+     * 피드마다 이미지 실어주는 방식이 다르다 —
+     * MarketWatch/Yahoo는 media:content, Accounting Today는 media:thumbnail + enclosure.
+     */
+    static String extractImageUrl(SyndEntry entry) {
+        if (entry.getModule(MediaModule.URI) instanceof MediaEntryModule media) {
+            Metadata metadata = media.getMetadata();
+            if (metadata != null && metadata.getThumbnail() != null
+                    && metadata.getThumbnail().length > 0) {
+                return metadata.getThumbnail()[0].getUrl().toString();
+            }
+            if (media.getMediaContents() != null) {
+                for (MediaContent content : media.getMediaContents()) {
+                    if (content.getReference() instanceof UrlReference ref) {
+                        return ref.getUrl().toString();
+                    }
+                }
+            }
+        }
+        for (SyndEnclosure enclosure : entry.getEnclosures()) {
+            boolean isImage = enclosure.getType() == null
+                    || enclosure.getType().startsWith("image");
+            if (isImage && enclosure.getUrl() != null && !enclosure.getUrl().isBlank()) {
+                return enclosure.getUrl();
+            }
+        }
+        return null;
     }
 
     private void prune(NewsCategory category) {

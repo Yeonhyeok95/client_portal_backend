@@ -36,6 +36,10 @@ public class NewsArticle {
     @Column(nullable = false, length = 1000, unique = true)
     private String url;
 
+    // 카드 썸네일 — 이미지 없는 항목은 수집 단계에서 걸러지므로 항상 존재
+    @Column(nullable = false, length = 1000)
+    private String imageUrl;
+
     private Instant publishedAt;
 
     @Column(nullable = false)
@@ -49,13 +53,14 @@ public class NewsArticle {
         // JPA 스펙상 기본 생성자 필요
     }
 
-    public NewsArticle(String source, NewsCategory category, String title,
-                       String summary, String url, Instant publishedAt, Instant fetchedAt) {
+    public NewsArticle(String source, NewsCategory category, String title, String summary,
+                       String url, String imageUrl, Instant publishedAt, Instant fetchedAt) {
         this.source = source;
         this.category = category;
         this.title = title;
         this.summary = summary;
         this.url = url;
+        this.imageUrl = imageUrl;
         this.publishedAt = publishedAt;
         this.fetchedAt = fetchedAt;
     }
@@ -82,6 +87,10 @@ public class NewsArticle {
 
     public String getUrl() {
         return url;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
     }
 
     public Instant getPublishedAt() {
